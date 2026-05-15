@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: text_to_sql_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: text2sql
+      POSTGRES_PASSWORD: text2sql
+      POSTGRES_DB: text2sql
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: text_to_sql_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://text2sql:text2sql@db:5432/text2sql
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: text_to_sql_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000/api/chat
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

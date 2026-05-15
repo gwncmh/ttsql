@@ -1,0 +1,137 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f3f4f6;
+}
+
+.app-shell {
+  max-width: 960px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0.4rem 0 0;
+  color: #4b5563;
+}
+
+.chat-input-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem;
+  background: #fafafa;
+}
+
+.chat-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+}
+
+button {
+  width: fit-content;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  background: #2563eb;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.action-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-secondary {
+  color: #111827;
+  background: #e5e7eb;
+}
+
+.example-list {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  color: #1f2937;
+  background: #e0ecff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.conversation {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.chat-turn {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem;
+  background: #f9fafb;
+}
+
+.chat-turn p {
+  margin: 0.45rem 0;
+}
+
+.turn-label {
+  display: inline-block;
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+  padding: 2rem 1rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+}
+
+.error {
+  margin-top: 1rem;
+  color: #dc2626;
+}

@@ -131,39 +131,18 @@ export function SQLBlock({ sql }) {
   );
 }
 
-// ── ResultTable — CSS classes, scroll ngang ───
-function parseAnswerRows(answer) {
-  const lines = answer.split("\n").filter(Boolean);
-  const listRows = lines.filter(l => /^\d+\.\s+/.test(l));
-  if (listRows.length >= 2) {
-    const firstRow = listRows[0].replace(/^\d+\.\s+/, "");
-    if (firstRow.split(/,\s*/).some(p => p.includes(":"))) {
-      return listRows.map(line => {
-        const clean = line.replace(/^\d+\.\s+/, "");
-        const obj = {};
-        clean.split(/,\s*/).forEach(pair => {
-          const idx = pair.indexOf(":");
-          if (idx > -1) obj[pair.slice(0,idx).trim()] = pair.slice(idx+1).trim();
-        });
-        return obj;
-      });
-    }
-  }
-  return null;
-}
-
 function ResultTable({ rows }) {
   if (!rows || rows.length === 0) return null;
   const headers = Object.keys(rows[0]);
   const exportCSV = () => {
     const csvRows = [
       headers.join(","),
-      ...rows.map(r => headers.map(h=>`"${String(r[h]??"").replace(/"/g,'""')}"`).join(","))
+      ...rows.map(r => headers.map(h => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(","))
     ];
-    const blob = new Blob([csvRows.join("\n")],{type:"text/csv;charset=utf-8;"});
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href=url; a.download=`query_result_${Date.now()}.csv`; a.click();
+    a.href = url; a.download = `query_result_${Date.now()}.csv`; a.click();
     URL.revokeObjectURL(url);
     showToast("Đã tải CSV!");
   };
@@ -171,10 +150,10 @@ function ResultTable({ rows }) {
     <>
       <div className="result-body">
         <table className="result-table">
-          <thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead>
+          <thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead>
           <tbody>
-            {rows.map((row,i)=>(
-              <tr key={i}>{headers.map(h=><td key={h} title={String(row[h]??"")}>{String(row[h]??"—")}</td>)}</tr>
+            {rows.map((row, i) => (
+              <tr key={i}>{headers.map(h => <td key={h} title={String(row[h] ?? "")}>{String(row[h] ?? "—")}</td>)}</tr>
             ))}
           </tbody>
         </table>
@@ -297,37 +276,45 @@ export function ErrorMessage({ error, onRetry }) {
 
 // ── ChatMessage ───────────────────────────────
 export function ChatMessage({ item, onEdit }) {
-  const safeAnswer = escapeHTML(item.answer||"").replace(/\n/g,"<br/>");
-  const tableRows = item.rawRows&&item.rawRows.length>0 ? item.rawRows : parseAnswerRows(item.answer||"");
+  const safeAnswer = escapeHTML(item.answer || "").replace(/\n/g, "<br/>");
+  const rows = item.rows || [];           // lấy từ backend, không parse text
+  const hasTable = rows.length > 1;       // > 1 dòng mới hiển thị bảng
+
   return (
     <>
       <div className="msg user">
         <div className="msg-bubble">{item.userQuestion}</div>
-        <div className="msg-meta" style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
+        <div className="msg-meta" style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
           <span>{item.time}</span>
-          <button onClick={()=>onEdit?.(item.userQuestion)}
-            style={{background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:11,padding:"2px 6px",borderRadius:4,fontFamily:"var(--font-body)"}}
+          <button onClick={() => onEdit?.(item.userQuestion)}
+            style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 11, padding: "2px 6px", borderRadius: 4, fontFamily: "var(--font-body)" }}
             title="Chỉnh sửa câu hỏi này">
             ✎ Sửa
           </button>
         </div>
       </div>
+
       <div className="msg ai">
-        <ThinkingTrace complexity={item.complexity}/>
-        <SQLBlock sql={item.sql}/>
+        <ThinkingTrace complexity={item.complexity} />
+        <SQLBlock sql={item.sql} />
+
         <div className="result-card">
           <div className="result-header">
-            <span style={{color:"var(--green)",fontSize:14}}>✓</span>
+            <span style={{ color: "var(--green)", fontSize: 14 }}>✓</span>
             <span className="result-title">Kết quả truy vấn</span>
             <span className="result-count">{item.elapsed}s</span>
           </div>
-          {tableRows&&tableRows.length>0 ? (
-            <ResultTable rows={tableRows}/>
-          ) : (
-            <div style={{padding:"12px 14px",fontSize:13,color:"var(--text)",lineHeight:1.7}}
-              dangerouslySetInnerHTML={{__html:safeAnswer}}/>
-          )}
+
+          {/* Answer — luôn hiển thị, kể cả khi có bảng */}
+          <div
+            style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", lineHeight: 1.7, borderBottom: hasTable ? "1px solid var(--border)" : "none" }}
+            dangerouslySetInnerHTML={{ __html: safeAnswer }}
+          />
+
+          {/* Bảng — chỉ hiển thị khi có nhiều hơn 1 dòng */}
+          {hasTable && <ResultTable rows={rows} />}
         </div>
+
         <div className="msg-meta">{item.time} · {item.complexity} · {item.elapsed}s</div>
         <div className="msg-rewritten">Rewritten: {item.rewrittenQuery}</div>
       </div>

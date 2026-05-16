@@ -56,4 +56,5 @@ def run_pipeline(user_question: str) -> dict[str, str]:
         "complexity":      final_state.get("complexity", "SIMPLE"),
         "sql":             final_state.get("final_sql") or final_state.get("sql", ""),
         "answer":          final_state.get("answer", "Không có câu trả lời."),
+        "rows":            final_state.get("rows", []),   # <-- thêm dòng này
     }

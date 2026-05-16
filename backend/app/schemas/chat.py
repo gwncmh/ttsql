@@ -1,7 +1,5 @@
 """
 backend/app/schemas/chat.py
-────────────────────────────
-Pydantic models cho /api/chat endpoint.
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -25,7 +23,8 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    rewritten_query: str = Field(description="Câu hỏi sau khi được chuẩn hóa")
-    complexity:      str = Field(description="SIMPLE hoặc COMPLEX")
-    sql:             str = Field(description="Câu SQL được sinh ra")
-    answer:          str = Field(description="Câu trả lời ngôn ngữ tự nhiên")
+    rewritten_query: str        = Field(description="Câu hỏi sau khi được chuẩn hóa")
+    complexity:      str        = Field(description="SIMPLE hoặc COMPLEX")
+    sql:             str        = Field(description="Câu SQL được sinh ra")
+    answer:          str        = Field(description="Câu trả lời ngôn ngữ tự nhiên")
+    rows:            list[dict] = Field(default=[], description="Kết quả truy vấn dạng list[dict]")

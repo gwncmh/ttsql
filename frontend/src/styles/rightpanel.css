@@ -1,0 +1,117 @@
+/* ════════════════════════════════════════════
+   rightpanel.css
+   Right panel: khung ngoài, stat grid,
+   danh sách lịch sử, danh sách pipeline.
+════════════════════════════════════════════ */
+
+/* ── Khung right panel ───────────────────────
+   Chiều rộng cố định 300px, không co giãn.
+   display: flex + flex-direction: column → các section xếp dọc.
+*/
+.right-panel {
+  width:          300px;
+  flex-shrink:    0;
+  border-left:    1px solid var(--border);
+  background:     var(--bg-panel);
+  overflow-y:     auto;           /* scroll dọc nếu nội dung dài */
+  display:        flex;
+  flex-direction: column;
+}
+
+/* Mỗi section trong right panel */
+.rpanel-section {
+  padding:       16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Label tiêu đề section — cùng style với sidebar-label */
+.rpanel-label {
+  font-size:      10px;
+  font-weight:    600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color:          var(--text-dim);
+  margin-bottom:  12px;
+}
+
+/* ── Stat grid ───────────────────────────────
+   Lưới 2 cột hiển thị 4 số liệu thống kê.
+*/
+.stat-grid {
+  display:               grid;
+  grid-template-columns: 1fr 1fr; /* 2 cột bằng nhau */
+  gap:                   8px;
+}
+
+/* Ô stat: số lớn + label nhỏ */
+.stat-cell {
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+  border-radius: var(--radius);
+  padding:       10px;
+  text-align:    center;
+}
+
+/* Số lớn — font mono để số trông gọn và cố định width */
+.stat-val {
+  font-size:   18px;
+  font-weight: 600;
+  color:       var(--text);
+  font-family: var(--font-mono);
+}
+
+.stat-key { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+/* ── History items ────────────────────────────
+   Danh sách câu hỏi gần đây — click để điền lại input.
+*/
+.history-item {
+  padding:       8px 10px;
+  border-radius: var(--radius);
+  cursor:        pointer;
+  border:        1px solid transparent; /* giữ chỗ, hiện khi hover */
+  transition:    all 0.12s;
+  margin-bottom: 4px;
+}
+.history-item:hover {
+  background:   var(--bg-card);
+  border-color: var(--border);
+}
+
+/* Câu hỏi — cắt ngắn nếu quá dài (1 dòng + ...) */
+.history-q {
+  font-size:     12px;
+  color:         var(--text-muted);
+  white-space:   nowrap;          /* không xuống dòng */
+  overflow:      hidden;
+  text-overflow: ellipsis;        /* hiện "..." khi tràn */
+}
+
+/* Metadata: giờ · complexity */
+.history-t { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+/* ── Pipeline list ───────────────────────────
+   Danh sách các bước pipeline + dot trạng thái (ở right panel).
+   Dùng lại .agent-dot từ sidebar.css.
+*/
+.pipeline-list {
+  display:        flex;
+  flex-direction: column;
+  gap:            4px;
+}
+
+/* Mỗi hàng: icon | tên | dot trạng thái */
+.pipeline-item {
+  font-size:     11px;
+  color:         var(--text-muted);
+  display:       flex;
+  align-items:   center;
+  gap:           6px;
+  padding:       4px 8px;
+  background:    var(--bg-card);
+  border-radius: var(--radius);
+  border:        1px solid var(--border);
+}
+
+/* Tên agent chiếm hết space giữa — đẩy dot về phải */
+.pipeline-name { flex: 1; }

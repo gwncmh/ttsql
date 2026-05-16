@@ -1,0 +1,110 @@
+/* ════════════════════════════════════════════
+   sidebar.css
+   Sidebar trái: khung ngoài, SchemaPanel, AgentStatusPanel.
+════════════════════════════════════════════ */
+
+/* ── Khung sidebar ───────────────────────────
+   Chiều rộng cố định 240px, không co giãn.
+   overflow-y: auto → scroll dọc nếu nội dung dài.
+*/
+.sidebar {
+  width:          240px;
+  flex-shrink:    0;              /* giữ nguyên width, không bị ép nhỏ */
+  border-right:   1px solid var(--border);
+  background:     var(--bg-panel);
+  display:        flex;
+  flex-direction: column;
+  overflow-y:     auto;
+}
+
+/* Mỗi section trong sidebar (Schema / Trạng thái Agent) */
+.sidebar-section {
+  padding:       16px;
+  border-bottom: 1px solid var(--border); /* đường kẻ ngăn các section */
+}
+
+/* Label tiêu đề section — chữ hoa nhỏ, màu mờ */
+.sidebar-label {
+  font-size:      10px;
+  font-weight:    600;
+  letter-spacing: 1px;            /* dãn chữ → trông như ALL CAPS label */
+  text-transform: uppercase;
+  color:          var(--text-dim);
+  margin-bottom:  10px;
+}
+
+/* ── Schema items ────────────────────────────
+   Mỗi dòng là một bảng DB trong danh sách.
+*/
+.schema-item {
+  display:       flex;
+  align-items:   flex-start;      /* icon + text căn trên */
+  gap:           8px;
+  padding:       8px 10px;
+  border-radius: var(--radius);
+  cursor:        pointer;
+  transition:    background 0.12s;
+  margin-bottom: 2px;
+  border:        1px solid transparent; /* giữ chỗ cho border khi active */
+}
+.schema-item:hover  { background: rgba(255, 255, 255, 0.04); }
+.schema-item.active {
+  background: var(--accent-glow);
+  border:     1px solid var(--border-accent); /* viền xanh khi được chọn */
+}
+
+/* Icon lục giác nhỏ trước tên bảng */
+.schema-icon {
+  width:           16px;
+  height:          16px;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  margin-top:      1px;           /* căn chỉnh với dòng chữ đầu tiên */
+  flex-shrink:     0;
+  color:           var(--accent);
+  font-size:       13px;
+}
+
+.schema-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.schema-cols { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* ── Agent status ────────────────────────────
+   Danh sách các bước pipeline với dot trạng thái.
+*/
+.agent-status {
+  display:        flex;
+  flex-direction: column;
+  gap:            6px;
+}
+
+/* Một hàng agent: dot | tên | label trạng thái */
+.agent-row {
+  display:       flex;
+  align-items:   center;
+  gap:           8px;
+  padding:       6px 10px;
+  border-radius: var(--radius);
+  background:    var(--bg-card);
+  border:        1px solid var(--border);
+}
+
+/* Chấm tròn nhỏ — màu thay đổi theo class state */
+.agent-dot {
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  flex-shrink:   0;
+  transition:    background 0.3s; /* chuyển màu mượt khi state đổi */
+}
+.agent-dot.idle     { background: var(--text-dim); }          /* xám */
+.agent-dot.thinking { background: var(--amber);               /* vàng nhấp nháy */
+                      animation: pulse 1s infinite; }
+.agent-dot.done     { background: var(--green); }             /* xanh */
+.agent-dot.error    { background: var(--red); }               /* đỏ */
+
+/* Tên agent — flex: 1 để đẩy label về phải */
+.agent-name  { font-size: 11px; font-weight: 500; color: var(--text-muted); flex: 1; }
+
+/* Label "Đang chạy..." / "✓" / "—" ở cuối hàng */
+.agent-label { font-size: 10px; color: var(--text-dim); margin-left: auto; }

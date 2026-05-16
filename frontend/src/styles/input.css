@@ -1,0 +1,96 @@
+/* ════════════════════════════════════════════
+   input.css
+   Vùng nhập liệu phía dưới vùng chat:
+   khung input, textarea, nút gửi, hint text.
+════════════════════════════════════════════ */
+
+/* ── Input area container ────────────────────
+   Dải ngang cố định phía dưới .main.
+   flex-shrink: 0 → không bị ép nhỏ khi chat history dài.
+*/
+.input-area {
+  border-top:  1px solid var(--border);
+  background:  var(--bg-panel);
+  padding:     16px 24px 20px;   /* thêm padding-bottom để tránh sát đáy */
+  flex-shrink: 0;
+}
+
+/* Hint text nhỏ bên dưới ô input: "Nhấn Enter để gửi..." */
+.input-hint {
+  font-size:  11px;
+  color:      var(--text-dim);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ── Input box ───────────────────────────────
+   Khung bọc textarea + nút gửi.
+   Hiện border accent khi focus bên trong.
+*/
+.input-box {
+  display:       flex;
+  gap:           10px;
+  align-items:   flex-end;        /* nút gửi căn dưới cùng với textarea */
+  background:    var(--bg-input);
+  border:        1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:       10px 12px;
+  transition:    border-color 0.15s;
+}
+
+/* Khi có element con được focus → đổi màu viền */
+.input-box:focus-within { border-color: var(--border-accent); }
+
+/* Khi đang loading → mờ đi toàn bộ input area */
+.input-box.disabled { opacity: 0.7; }
+
+/* ── Textarea ────────────────────────────────
+   Tự resize chiều cao theo nội dung (qua JS autoResize).
+   resize: none → ẩn tay kéo góc phải dưới mặc định.
+*/
+#query-input {
+  flex:        1;
+  background:  none;              /* trong suốt, lấy màu từ .input-box */
+  border:      none;
+  outline:     none;              /* bỏ viền focus mặc định của browser */
+  color:       var(--text);
+  font-family: var(--font-body);
+  font-size:   14px;
+  line-height: 1.5;
+  resize:      none;
+  min-height:  22px;              /* chiều cao tối thiểu (1 dòng) */
+  max-height:  120px;             /* giới hạn chiều cao tối đa */
+}
+
+#query-input::placeholder { color: var(--text-dim); }
+
+/* ── Send button ─────────────────────────────
+   Nút gửi hình vuông nhỏ, màu accent xanh.
+*/
+.send-btn {
+  width:           34px;
+  height:          34px;
+  background:      var(--accent);
+  border:          none;
+  border-radius:   8px;
+  color:           #0c0d0f;       /* chữ tối → tương phản trên nền xanh */
+  cursor:          pointer;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;             /* giữ nguyên kích thước */
+  font-size:       16px;
+  font-weight:     600;
+  transition:      all 0.15s;
+}
+
+/* Hover → sáng hơn và scale nhẹ */
+.send-btn:hover:not(:disabled)  { background: #90cdf4; transform: scale(1.03); }
+/* Active (đang nhấn) → thu nhỏ lại */
+.send-btn:active:not(:disabled) { transform: scale(0.97); }
+/* Disabled → xám, không pointer */
+.send-btn:disabled {
+  background: var(--text-dim);
+  cursor:     not-allowed;
+  transform:  none;
+}

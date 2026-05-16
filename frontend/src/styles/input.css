@@ -34,7 +34,7 @@
   background:    var(--bg-input);
   border:        1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding:       10px 12px;
+  padding:       6px 8px;
   transition:    border-color 0.15s;
 }
 
@@ -56,7 +56,7 @@
   color:       var(--text);
   font-family: var(--font-body);
   font-size:   14px;
-  line-height: 1.5;
+  line-height: 1.2;
   resize:      none;
   min-height:  22px;              /* chiều cao tối thiểu (1 dòng) */
   max-height:  120px;             /* giới hạn chiều cao tối đa */
@@ -68,8 +68,8 @@
    Nút gửi hình vuông nhỏ, màu accent xanh.
 */
 .send-btn {
-  width:           34px;
-  height:          34px;
+  width:           26px;
+  height:          26px;
   background:      var(--accent);
   border:          none;
   border-radius:   8px;

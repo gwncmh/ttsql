@@ -1,38 +1,41 @@
 /* ════════════════════════════════════════════
-   layout.css
-   Bố cục tổng thể: header, .app (3 cột),
-   .main (vùng chat giữa), và responsive breakpoints.
+   layout.css — fix scroll trong khung chat
 ════════════════════════════════════════════ */
 
-/* ── Header ──────────────────────────────────
-   Thanh ngang cố định trên cùng.
-*/
+/* ── Header ── */
 header {
   display:         flex;
-  align-items:     center;          /* căn dọc giữa */
-  justify-content: space-between;   /* logo trái, badges phải */
-  padding:         0 28px;          /* khoảng cách hai bên */
-  height:          56px;            /* chiều cao cố định */
+  align-items:     center;
+  justify-content: space-between;
+  padding:         0 28px;
+  height:          56px;
   border-bottom:   1px solid var(--border);
   background:      var(--bg-panel);
-  position:        sticky;          /* dính trên cùng khi scroll */
+  position:        sticky;
   top:             0;
-  z-index:         100;             /* đè lên nội dung bên dưới */
-  flex-shrink:     0;               /* không bị co lại khi layout flex */
+  z-index:         100;
+  flex-shrink:     0;
 }
 
-/* Logo text + icon */
 .logo {
   display:        flex;
   align-items:    center;
   gap:            10px;
   font-size:      15px;
   font-weight:    600;
-  letter-spacing: -0.3px;           /* chữ sát nhau nhẹ → trông gọn hơn */
+  letter-spacing: -0.3px;
   color:          var(--text);
 }
 
-/* Hình vuông nhỏ làm icon logo — gradient xanh tím */
+/* Logo image thay vì gradient box */
+.logo-img {
+  width:         32px;
+  height:        32px;
+  object-fit:    contain;
+  border-radius: 7px;
+}
+
+/* Fallback icon nếu ảnh không load */
 .logo-icon {
   width:           28px;
   height:          28px;
@@ -44,48 +47,64 @@ header {
   font-size:       14px;
 }
 
-/* Phần "Text2SQL" trong logo → màu accent xanh */
 .logo span { color: var(--accent); }
 
-/* Nhóm badges + nút Xóa bên phải header */
 .header-meta {
   display:     flex;
   align-items: center;
   gap:         8px;
 }
 
-/* ── App shell (3 cột) ───────────────────────
-   .app là flex container ngang: sidebar | main | right-panel.
-   Chiều cao = 100vh trừ header (56px), overflow hidden để
-   mỗi cột tự scroll bên trong.
-*/
+/* ── App shell — 3 cột, chiều cao CHÍNH XÁC bằng viewport trừ header ── */
 .app {
-  display:  flex;
-  flex:     1;                          /* chiếm hết chiều cao còn lại */
-  height:   calc(100vh - 56px);
-  overflow: hidden;
+  display:    flex;
+  height:     calc(100vh - 56px); /* cố định chiều cao */
+  overflow:   hidden;             /* KHÔNG cho tràn ra ngoài */
 }
 
-/* ── Main (cột giữa) ─────────────────────────
-   flex: 1 → chiếm hết không gian còn lại sau 2 sidebar.
-   overflow: hidden → không tràn ra ngoài, scroll riêng trong .chat-history.
-*/
+/* ── Main — flex column, chứa chat + input ── */
 .main {
   flex:           1;
   display:        flex;
   flex-direction: column;
-  overflow:       hidden;
+  min-width:      0;    /* quan trọng: tránh flex item vượt quá container */
+  overflow:       hidden; /* bắt buộc để .chat-history scroll bên trong */
 }
 
-/* ── Badges ──────────────────────────────────
-   Nhãn nhỏ kiểu pill trong header.
-*/
+/* ── Chat history — CỘT NÀY scroll, không phải trang ── */
+.chat-history {
+  flex:           1;          /* chiếm hết chiều cao còn lại trong .main */
+  overflow-y:     auto;       /* scroll DỌC bên trong khung này */
+  overflow-x:     hidden;
+  padding:        24px 32px;
+  display:        flex;
+  flex-direction: column;
+  gap:            20px;
+  /* Chiều cao được xác định bởi flex, không phải nội dung */
+}
+
+/* ── Input area — luôn cố định dưới cùng ── */
+.input-area {
+  border-top:  1px solid var(--border);
+  background:  var(--bg-panel);
+  padding:     16px 24px 20px;
+  flex-shrink: 0; /* KHÔNG bị co lại dù chat nhiều */
+}
+
+.input-hint {
+  font-size:  11px;
+  color:      var(--text-dim);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ── Badges ── */
 .badge {
   font-size:     11px;
   font-weight:   500;
   padding:       3px 9px;
   border-radius: var(--radius-pill);
-  border:        1px solid;           /* màu border do class con quy định */
+  border:        1px solid;
 }
 
 .badge-green {
@@ -100,7 +119,6 @@ header {
   background:   var(--accent-glow);
 }
 
-/* Nút "Xóa" lịch sử — pill đỏ nhạt */
 .btn-clear {
   font-size:     11px;
   font-weight:   500;
@@ -114,13 +132,12 @@ header {
 }
 .btn-clear:hover { background: rgba(252, 129, 129, 0.2); }
 
-/* ── Responsive ──────────────────────────────
-   Ẩn 2 sidebar khi màn hình nhỏ → chỉ hiện vùng chat.
-*/
+/* ── Responsive ── */
 @media (max-width: 900px) {
   .sidebar, .right-panel { display: none; }
 }
 
 @media (max-width: 600px) {
   header { padding: 0 16px; }
+  .chat-history { padding: 16px; }
 }

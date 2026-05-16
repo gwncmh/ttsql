@@ -1,107 +1,72 @@
 /* ════════════════════════════════════════════
-   base.css
-   Reset, CSS variables (design tokens), kiểu chữ,
-   scrollbar, animations — nền tảng cho toàn app.
-   Import file này ĐẦU TIÊN trong App.jsx.
+   base.css — cải tiến: thêm toastIn animation
 ════════════════════════════════════════════ */
 
-/* ── Reset ──────────────────────────────────
-   box-sizing: border-box → width/height tính gồm cả padding và border,
-   tránh bị tràn layout ngoài ý muốn.
-   margin/padding: 0 → xoá khoảng cách mặc định của trình duyệt.
-*/
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-/* ── Design tokens (CSS variables) ──────────
-   Đổi màu/kích thước toàn app chỉ cần sửa ở đây.
-   Tất cả component đều dùng var(--tên-biến).
-*/
 :root {
-  /* Màu nền — từ tối nhất đến sáng dần */
-  --bg:        #0c0d0f; /* nền toàn trang */
-  --bg-panel:  #141518; /* nền sidebar, header, right panel */
-  --bg-card:   #1a1c21; /* nền card, row trong list */
-  --bg-input:  #1f2127; /* nền ô input */
+  --bg:        #fbfeff;
+  --bg-panel:  #ffffff;
+  --bg-card:   #f5f7ff;
+  --bg-input:  #f8fcff;
 
-  /* Đường viền — dùng rgba để trong suốt một phần */
-  --border:        rgba(255, 255, 255, 0.07);  /* viền mặc định */
-  --border-hover:  rgba(255, 255, 255, 0.15);  /* viền khi hover */
-  --border-accent: rgba(99, 179, 237, 0.3);    /* viền nhấn (màu xanh) */
+  --border:        rgba(31, 77, 231, 0.07);
+  --border-hover:  rgba(255, 255, 255, 0.15);
+  --border-accent: rgba(99, 179, 237, 0.3);
 
-  /* Màu chữ */
-  --text:      #e8eaed; /* chữ chính */
-  --text-muted:#7a8494; /* chữ phụ, label */
-  --text-dim:  #4a5568; /* chữ rất mờ, placeholder */
+  --text:      #606163;
+  --text-muted:#7a8494;
+  --text-dim:  #4a5568;
 
-  /* Màu nhấn chính — xanh dương */
   --accent:      #63b3ed;
-  --accent-glow: rgba(99, 179, 237, 0.15); /* glow nhẹ dùng làm bg */
+  --accent-glow: rgba(99, 179, 237, 0.15);
 
-  /* Màu xanh lá — dùng cho trạng thái success, kết quả */
   --green:        #68d391;
   --green-dim:    rgba(104, 211, 145, 0.1);
   --green-border: rgba(104, 211, 145, 0.15);
 
-  /* Màu vàng — dùng cho trạng thái "đang xử lý" (thinking) */
   --amber: #f6ad55;
 
-  /* Màu đỏ — dùng cho lỗi, nút xoá */
   --red:     #fc8181;
   --red-dim: rgba(252, 129, 129, 0.1);
 
-  /* Màu tím — dùng làm gradient phụ */
   --purple: #b794f4;
 
-  /* Font chữ */
-  --font-body: 'Be Vietnam Pro', 'Inter', sans-serif; /* chữ thường */
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace; /* code/SQL */
+  --font-body: 'Be Vietnam Pro', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
-  /* Bo góc */
-  --radius:      10px; /* bo góc mặc định */
-  --radius-lg:   14px; /* bo góc lớn hơn (bubble chat, input box) */
-  --radius-pill: 20px; /* bo tròn hoàn toàn (badge, nút nhỏ) */
+  --radius:      10px;
+  --radius-lg:   14px;
+  --radius-pill: 20px;
 }
 
-/* ── Base styles ─────────────────────────────
-   font-family, background, màu chữ, chiều cao tối thiểu
-   đặt ở body để cascade xuống toàn bộ app.
-*/
 body {
   font-family:    var(--font-body);
   background:     var(--bg);
   color:          var(--text);
-  min-height:     100vh; /* đảm bảo body luôn cao ít nhất bằng màn hình */
+  min-height:     100vh;
   font-size:      14px;
   line-height:    1.6;
   display:        flex;
-  flex-direction: column; /* header + app xếp dọc */
+  flex-direction: column;
 }
 
-/* #root bọc toàn bộ app — cũng cần flex column để layout đúng */
 #root {
   display:        flex;
   flex-direction: column;
   min-height:     100vh;
 }
 
-/* ── Scrollbar ───────────────────────────────
-   Tùy chỉnh thanh cuộn trên Chrome/Safari.
-   Firefox dùng scrollbar-width: thin (không hỗ trợ ở đây).
-*/
-::-webkit-scrollbar        { width: 4px; height: 4px; }        /* thanh mỏng 4px */
-::-webkit-scrollbar-track  { background: transparent; }         /* nền trong suốt */
-::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); /* ngón kéo mờ */
-                              border-radius: 2px; }
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
-/* ── Keyboard hint (<kbd>) ───────────────────
-   Hiển thị phím tắt kiểu "nút bấm" nhỏ trong hint text.
-*/
 kbd {
-  background:    rgba(255, 255, 255, 0.07); /* nền trắng mờ */
+  background:    rgba(255, 255, 255, 0.07);
   padding:       1px 5px;
   border-radius: 4px;
   font-size:     10px;
@@ -109,18 +74,18 @@ kbd {
   color:         var(--text-muted);
 }
 
-/* ── Animations ──────────────────────────────
-   Định nghĩa keyframe dùng lại ở nhiều nơi.
-*/
-
-/* pulse: dùng cho dot "thinking" — nhấp nháy opacity */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
 
-/* typing: dùng cho 3 chấm TypingIndicator — scale + opacity */
 @keyframes typing {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
   40%           { opacity: 1;   transform: scale(1); }
+}
+
+/* Toast slide-in từ phải */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
 }

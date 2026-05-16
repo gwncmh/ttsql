@@ -5,7 +5,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from ai.agents.query_rewriter import rewrite_query
+from ai.agents.nodes.query_rewriter import rewrite_query
 
 
 def main() -> None:

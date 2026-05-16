@@ -1,18 +1,20 @@
 """
 ai/agents/pipeline.py
 ──────────────────────
-Orchestrator nối toàn bộ 6 agent thành pipeline hoàn chỉnh.
+Entry point cho toàn bộ AI pipeline — giờ là thin wrapper quanh LangGraph.
 
-Flow:
-  user_question
-    → [1] Query Rewriter     → rewritten_query
-    → [2] Schema Retrieval   → schema_info, schema_text
-    → [3] Adaptive Router    → complexity (SIMPLE | COMPLEX)
-    → [4] SQL Generator      → sql, reasoning
-    → [5] Execution+Feedback → rows, final_sql, retry_count, success
-    → [6] Answer Generation  → answer
-    → return dict
+API giữ nguyên để backend không cần thay đổi:
+    from ai.agents.pipeline import run_pipeline
+    result = run_pipeline(user_question="Top 3 sinh viên GPA cao nhất?")
+    # result: {"rewritten_query", "complexity", "sql", "answer"}
+
+Thay đổi nội bộ:
+- Pipeline cũ: 6 hàm Python gọi nhau thủ công với if/else routing
+- Pipeline mới: LangGraph StateGraph với typed state, conditional edges,
+  built-in retry (via LangChain chains), và dễ mở rộng thêm node mới
 """
+
+from __future__ import annotations
 
 import logging
 import sys
@@ -23,75 +25,35 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from ai.agents.query_rewriter    import rewrite_query      # noqa: E402
-from ai.agents.schema_retrieval  import (                  # noqa: E402
-    retrieve_schema, format_schema_for_prompt,
-)
-from ai.agents.adaptive_router   import classify_query     # noqa: E402
-from ai.agents.sql_generator     import generate_sql       # noqa: E402
-from ai.agents.execution_feedback import execute_with_feedback  # noqa: E402
-from ai.agents.answer_generation  import generate_answer   # noqa: E402
+from ai.agents.graph import get_graph  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 def run_pipeline(user_question: str) -> dict[str, str]:
     """
-    Chạy toàn bộ pipeline và trả về dict để ChatResponse consume.
+    Chạy toàn bộ pipeline qua LangGraph và trả về dict.
 
-    Keys trả về:
-      rewritten_query, complexity, sql, answer
+    Keys trả về (tương thích với ChatResponse schema):
+        rewritten_query, complexity, sql, answer
     """
-    logger.info("=== Pipeline START: %s", user_question[:80])
+    logger.info("=== Pipeline START (LangGraph): %s", user_question[:80])
 
-    # ── Agent 1: Query Rewriter ───────────────────────────────────────────────
-    rewritten = rewrite_query(user_question)
-    logger.info("[1] Rewritten: %s", rewritten[:100])
+    graph = get_graph()
 
-    # ── Agent 2: Schema Retrieval ─────────────────────────────────────────────
-    schema_info = retrieve_schema(rewritten)
-    schema_text = format_schema_for_prompt(schema_info)
-    logger.info(
-        "[2] Schema: %d table(s) — %s",
-        len(schema_info["tables"]),
-        list(schema_info["tables"].keys()),
-    )
-
-    # ── Agent 3: Adaptive Router ──────────────────────────────────────────────
-    complexity = classify_query(rewritten)
-    logger.info("[3] Complexity: %s", complexity)
-
-    # ── Agent 4: SQL Generator ────────────────────────────────────────────────
-    sql, reasoning = generate_sql(rewritten, schema_text, complexity)
-    logger.info("[4] SQL: %s", sql[:120])
-    if reasoning:
-        logger.debug("[4] Reasoning: %s", reasoning[:200])
-
-    # ── Agent 5: Execution + Feedback ─────────────────────────────────────────
-    exec_result = execute_with_feedback(sql, schema_text, rewritten)
-    final_sql    = exec_result["final_sql"]
-    rows         = exec_result["rows"]
-    retry_count  = exec_result["retry_count"]
-    success      = exec_result["success"]
+    # Invoke LangGraph — trả về GraphState đầy đủ
+    final_state = graph.invoke({"user_question": user_question})
 
     logger.info(
-        "[5] Execution: success=%s, rows=%d, retries=%d",
-        success, len(rows), retry_count,
+        "=== Pipeline END — complexity=%s, sql_len=%d, answer_len=%d",
+        final_state.get("complexity"),
+        len(final_state.get("sql", "") or ""),
+        len(final_state.get("answer", "") or ""),
     )
-
-    # ── Agent 6: Answer Generation ────────────────────────────────────────────
-    answer = generate_answer(
-        user_question=user_question,
-        rows=rows,
-        execution_success=success,
-        error_msg=exec_result.get("error"),
-    )
-    logger.info("[6] Answer: %s", answer[:100])
-    logger.info("=== Pipeline END ===")
 
     return {
-        "rewritten_query": rewritten,
-        "complexity":      complexity,
-        "sql":             final_sql,
-        "answer":          answer,
+        "rewritten_query": final_state.get("rewritten_query", user_question),
+        "complexity":      final_state.get("complexity", "SIMPLE"),
+        "sql":             final_state.get("final_sql") or final_state.get("sql", ""),
+        "answer":          final_state.get("answer", "Không có câu trả lời."),
     }

@@ -4,3 +4,7 @@ pydantic
 httpx
 python-dotenv
 certifi
+langchain>=0.3.0
+langchain-openai>=0.2.0      # ChatOpenAI → OpenRouter
+langchain-community>=0.3.0   # community integrations (nếu cần)
+langgraph>=0.2.0             # StateGraph orchestration

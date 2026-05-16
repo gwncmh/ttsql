@@ -2,8 +2,8 @@
 backend/app/main.py
 ────────────────────
 FastAPI application entry point.
-- Lifespan hook: kiểm tra DB khi khởi động
-- CORS giới hạn origin (không dùng wildcard "*" cho production)
+- Lifespan hook: kiểm tra DB + warm up LangGraph khi khởi động
+- CORS giới hạn origin
 - Health check endpoint
 """
 
@@ -21,11 +21,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Origins được phép gọi API — thêm domain production vào đây
 ALLOWED_ORIGINS = [
-    "http://localhost:5173",   # Vite dev
-    "http://localhost:4173",   # Vite preview
-    "http://localhost:3000",   # CRA / Next.js dev (backup)
+    "http://localhost:5173",
+    "http://localhost:4173",
+    "http://localhost:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:4173",
 ]
@@ -35,9 +34,11 @@ ALLOWED_ORIGINS = [
 async def lifespan(app: FastAPI):
     """Chạy khi app khởi động / tắt."""
     logger.info("Đang khởi động Text-to-SQL backend...")
+
+    # ── 1. Kiểm tra DB ─────────────────────────────────────────────────────
     try:
         from app.db import get_connection, get_schema_info
-        conn = get_connection()
+        get_connection()
         schema = get_schema_info()
         logger.info(
             "✓ Database kết nối thành công — %d bảng: %s",
@@ -49,6 +50,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("✗ Lỗi kết nối database: %s", e)
 
+    # ── 2. Warm up LangGraph — compile 1 lần duy nhất khi startup ──────────
+    # Tránh compile lại mỗi request (mỗi thread run_in_executor có thể
+    # thấy _graph_instance=None nếu module chưa được import ở main thread)
+    try:
+        import asyncio
+        from functools import partial
+        from ai.agents.graph import get_graph
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, get_graph)   # compile trong thread pool
+        logger.info("✓ LangGraph compiled và sẵn sàng.")
+    except Exception as e:
+        logger.warning("⚠ LangGraph warm-up thất bại: %s", e)
+
     yield   # app đang chạy
 
     logger.info("Backend đang tắt...")
@@ -56,7 +71,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Text-to-SQL Chatbot API",
-    version="0.2.0",
+    version="0.3.0",
     description="Multi-Agent Text-to-SQL với RAG và Adaptive Routing",
     lifespan=lifespan,
 )
@@ -72,8 +87,7 @@ app.add_middleware(
 
 @app.get("/health", tags=["system"])
 def health_check() -> dict[str, str]:
-    """Kiểm tra trạng thái backend."""
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 app.include_router(chat_router, prefix="/api")

@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────
 
 import { useState, useRef, useEffect, useCallback } from "react";
-
+import { showToast } from "./toast";
 import { API_URL, AGENT_PIPELINE } from "./constants";
 import { timeNow } from "./utils";
 import {
@@ -16,6 +16,7 @@ import {
   ErrorMessage,
   ToastProvider,
   Logo,
+  DBUploadPanel
 } from "./components";
 
 import "./styles/base.css";
@@ -39,7 +40,7 @@ export default function App() {
   const [activeTable, setActiveTable] = useState(0);
   const [agentStates, setAgentStates] = useState({});
   const [stats, setStats] = useState({ totalQueries: 0, totalLatency: 0 });
-
+  const [dynamicSchema, setDynamicSchema] = useState(null); // null = dùng SCHEMA_TABLES mặc định
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -214,7 +215,8 @@ export default function App() {
         <aside className="sidebar">
           <div className="sidebar-section">
             <div className="sidebar-label">Schema</div>
-            <SchemaPanel activeTable={activeTable} onSelectTable={setActiveTable} />
+            <SchemaPanel activeTable={activeTable} onSelectTable={setActiveTable} tables={dynamicSchema}/>
+            <DBUploadPanel onDBLoaded={(tables) => setDynamicSchema(tables)} />
           </div>
         </aside>
 

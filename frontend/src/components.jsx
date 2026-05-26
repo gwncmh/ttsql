@@ -1,17 +1,17 @@
 // ─────────────────────────────────────────────
-// components.jsx — fix bảng, logo, scroll
+// components.jsx
 // ─────────────────────────────────────────────
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { SCHEMA_TABLES, AGENT_PIPELINE, EXAMPLE_QUESTIONS } from "./constants";
 import { highlightSQL, escapeHTML } from "./utils";
+import { registerToastSetter, showToast } from "./toast";
 
 // ── Toast ─────────────────────────────────────
-let _setToast = null;
 export function ToastProvider() {
   const [toast, setToast] = useState(null);
   useEffect(() => {
-    _setToast = (msg, type = "success") => setToast({ msg, type, id: Date.now() });
-    return () => { _setToast = null; };
+  registerToastSetter((msg, type = "success") => setToast({ msg, type, id: Date.now() }));
+  return () => registerToastSetter(null);
   }, []);
   useEffect(() => {
     if (!toast) return;
@@ -33,9 +33,8 @@ export function ToastProvider() {
     </div>
   );
 }
-export function showToast(msg, type = "success") { _setToast?.(msg, type); }
 
-// ── Logo — ảnh từ /assets/logo.png ───────────
+// ── Logo ──────────────────────────────────────
 export function Logo() {
   const [imgErr, setImgErr] = useState(false);
   return (
@@ -71,19 +70,152 @@ export function AgentStatusPanel({ agentStates }) {
   );
 }
 
+// ── DBUploadPanel ─────────────────────────────
+export function DBUploadPanel({ onDBLoaded }) {
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dbInfo, setDbInfo] = useState(null);
+  const fileRef = useRef(null);  // ← giờ useRef đã được import
+
+  useEffect(() => {
+    fetch("/api/db-info")
+      .then(r => r.json())
+      .then(data => {
+        setDbInfo({ label: data.db_label, tables: data.tables });
+        onDBLoaded?.(data.tables);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/api/upload-db", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload thất bại");
+      setDbInfo({ label: data.db_label, tables: data.tables });
+      onDBLoaded?.(data.tables);
+      showToast(`Đã nạp: ${data.db_label}`);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      const res = await fetch("/api/reset-db", { method: "POST" });
+      const data = await res.json();
+      setDbInfo({ label: data.db_label, tables: data.tables });
+      onDBLoaded?.(data.tables);
+      showToast("Đã reset về DB mặc định");
+    } catch {
+      showToast("Reset thất bại", "error");
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    handleFile(e.dataTransfer.files[0]);
+  };
+
+  const tableCount = dbInfo ? Object.keys(dbInfo.tables).length : 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{
+        background: "var(--bg-card)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius)", padding: "8px 10px",
+        fontSize: 11, display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span style={{ color: "var(--green)" }}>🗄️</span>
+        <span style={{ flex: 1, color: "var(--text-muted)", overflow: "hidden",
+          textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {dbInfo ? dbInfo.label : "Đang tải..."}
+        </span>
+        {tableCount > 0 && (
+          <span style={{
+            fontSize: 10, color: "var(--accent)", background: "var(--accent-glow)",
+            padding: "1px 6px", borderRadius: 10, border: "1px solid var(--border-accent)",
+          }}>{tableCount} bảng</span>
+        )}
+      </div>
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => fileRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragging ? "var(--accent)" : "var(--border)"}`,
+          borderRadius: "var(--radius)", padding: "12px 8px",
+          textAlign: "center", cursor: "pointer", transition: "all 0.15s",
+          background: dragging ? "var(--accent-glow)" : "transparent",
+          fontSize: 11, color: "var(--text-dim)",
+        }}
+      >
+        <input
+          ref={fileRef} type="file" accept=".sqlite,.sqlite3,.db"
+          style={{ display: "none" }}
+          onChange={(e) => handleFile(e.target.files[0])}
+        />
+        {uploading ? (
+          <span style={{ color: "var(--amber)" }}>⏳ Đang nạp...</span>
+        ) : (
+          <>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>📂</div>
+            <div>Kéo thả hoặc click</div>
+            <div style={{ fontSize: 10, marginTop: 2 }}>.sqlite / .db (≤50MB)</div>
+          </>
+        )}
+      </div>
+
+      {dbInfo && !dbInfo.label.includes("mặc định") && (
+        <button
+          onClick={handleReset}
+          style={{
+            fontSize: 11, padding: "4px 0", borderRadius: "var(--radius)",
+            border: "1px solid var(--border)", background: "var(--bg-card)",
+            color: "var(--text-muted)", cursor: "pointer",
+            fontFamily: "var(--font-body)", transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.target.style.borderColor = "var(--border-accent)"; e.target.style.color = "var(--accent)"; }}
+          onMouseLeave={e => { e.target.style.borderColor = "var(--border)"; e.target.style.color = "var(--text-muted)"; }}
+        >
+          ↩ Dùng lại DB mặc định
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── SchemaPanel — expandable ──────────────────
-export function SchemaPanel({ activeTable, onSelectTable }) {
+export function SchemaPanel({ activeTable, onSelectTable, tables }) {  // ← nhận prop tables
   const [expanded, setExpanded] = useState(null);
+
+  // ← fix: tính displayTables đúng, dùng nó trong .map
+  const displayTables = tables
+    ? Object.entries(tables).map(([name, cols]) => ({ name, cols }))
+    : SCHEMA_TABLES;
+
   const toggle = (i) => { setExpanded(expanded===i?null:i); onSelectTable(i); };
+
+  // FK_MAP tĩnh cho university.db; với DB upload thì không hiển thị FK
   const FK_MAP = {
-    students:["major_id → majors.id"],
-    majors:["faculty_id → faculties.id"],
-    scores:["student_id → students.id"],
+    students: ["major_id → majors.id"],
+    majors:   ["faculty_id → faculties.id"],
+    scores:   ["student_id → students.id"],
     faculties:[],
   };
+
   return (
     <div id="schema-list">
-      {SCHEMA_TABLES.map((t, i) => (
+      {displayTables.map((t, i) => (  // ← dùng displayTables thay vì SCHEMA_TABLES
         <div key={t.name}>
           <div className={`schema-item ${activeTable===i?"active":""}`} onClick={() => toggle(i)}>
             <div className="schema-icon">⬡</div>
@@ -103,7 +235,7 @@ export function SchemaPanel({ activeTable, onSelectTable }) {
                   {col.endsWith("_id")&&col!=="id"&&<span style={{fontSize:9,color:"var(--purple)",background:"rgba(183,148,244,0.1)",padding:"1px 5px",borderRadius:4}}>FK</span>}
                 </div>
               ))}
-              {FK_MAP[t.name]?.length>0&&(
+              {FK_MAP[t.name]?.length > 0 && (
                 <>
                   <div style={{fontSize:10,color:"var(--text-dim)",marginTop:8,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Quan hệ</div>
                   {FK_MAP[t.name].map(fk=><div key={fk} style={{fontSize:10,color:"var(--text-muted)",fontFamily:"var(--font-mono)"}}>→ {fk}</div>)}
@@ -277,8 +409,8 @@ export function ErrorMessage({ error, onRetry }) {
 // ── ChatMessage ───────────────────────────────
 export function ChatMessage({ item, onEdit }) {
   const safeAnswer = escapeHTML(item.answer || "").replace(/\n/g, "<br/>");
-  const rows = item.rows || [];           // lấy từ backend, không parse text
-  const hasTable = rows.length > 1;       // > 1 dòng mới hiển thị bảng
+  const rows = item.rows || [];
+  const hasTable = rows.length > 1;
 
   return (
     <>
@@ -304,14 +436,10 @@ export function ChatMessage({ item, onEdit }) {
             <span className="result-title">Kết quả truy vấn</span>
             <span className="result-count">{item.elapsed}s</span>
           </div>
-
-          {/* Answer — luôn hiển thị, kể cả khi có bảng */}
           <div
             style={{ padding: "10px 14px", fontSize: 13, color: "var(--text)", lineHeight: 1.7, borderBottom: hasTable ? "1px solid var(--border)" : "none" }}
             dangerouslySetInnerHTML={{ __html: safeAnswer }}
           />
-
-          {/* Bảng — chỉ hiển thị khi có nhiều hơn 1 dòng */}
           {hasTable && <ResultTable rows={rows} />}
         </div>
 

@@ -1,15 +1,16 @@
 """
 ai/agents/nodes/schema_retrieval.py
 ─────────────────────────────────────
-FIX:
-- Filter bảng system SQLite (sqlite_sequence, sqlite_master, ...) khỏi schema
-- Tăng max_tokens schema selection từ 64 → 128
-- Log warning rõ hơn khi fallback
-- Parser JSON cải thiện tương tự query_rewriter
+Node 2 — Schema Retrieval (RAG-lite).
+
+- Đọc schema từ DB đang active qua db_manager
+- FK tự suy luận từ _id convention (không hardcode)
+- Auto-include bảng liên quan động theo FK
 """
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import re
@@ -24,28 +25,102 @@ from ai.agents.llm_client import get_llm
 
 logger = logging.getLogger(__name__)
 
-# Bảng system của SQLite — không bao giờ đưa vào prompt LLM
-_SQLITE_SYSTEM_TABLES = {
-    "sqlite_sequence",
-    "sqlite_master",
-    "sqlite_stat1",
-    "sqlite_stat2",
-    "sqlite_stat3",
-    "sqlite_stat4",
-}
 
-_FK_RELATIONS = [
-    ("students.major_id", "majors.id"),
-    ("majors.faculty_id", "faculties.id"),
-    ("scores.student_id", "students.id"),
-]
+# ── Đọc schema từ DB đang active ─────────────────────────────────────────────
+def _get_full_schema() -> dict[str, list[str]]:
+    """
+    Đọc schema từ DB đang active.
 
-_AUTO_INCLUDE: dict[str, list[str]] = {
-    "students": ["majors", "faculties"],
-    "majors":   ["faculties"],
-    "scores":   ["students"],
-}
+    Dùng importlib + sys.modules để đảm bảo nhận ĐÚNG module object
+    mà upload.py đã gọi set_active_db() — tránh trường hợp Python
+    load hai instance khác nhau của cùng một module.
+    """
+    # Đảm bảo PROJECT_ROOT trong sys.path để import backend.*
+    PROJECT_ROOT = Path(__file__).resolve().parents[3]
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
 
+    # Thử import db_manager theo cả hai path có thể có
+    for mod_name in ("backend.app.db_manager", "app.db_manager"):
+        try:
+            mod = importlib.import_module(mod_name)
+            schema = mod.get_active_schema()
+            logger.info(
+                "[Schema] Dùng %s | DB: %s | %d bảng: %s",
+                mod_name,
+                mod.get_active_path(),
+                len(schema),
+                list(schema.keys()),
+            )
+            return schema
+        except ImportError:
+            continue
+        except Exception as exc:
+            logger.error("[Schema] Lỗi khi gọi %s.get_active_schema(): %s", mod_name, exc)
+            raise
+
+    # Fallback cuối: db.py tĩnh (luôn là university.db)
+    logger.warning("[Schema] Không import được db_manager — fallback về db.py (university.db cố định)")
+    from backend.app.db import get_schema_info
+    return get_schema_info()
+
+
+# ── Suy luận FK từ _id convention ────────────────────────────────────────────
+def _infer_fk_relations(schema: dict[str, list[str]]) -> list[tuple[str, str]]:
+    """
+    Suy luận FK từ tên cột dạng <prefix>_id.
+    Thử các biến thể: prefix, prefix+s, prefix+es, prefix(y→ies).
+    """
+    relations = []
+    table_names = set(schema.keys())
+
+    for table, cols in schema.items():
+        for col in cols:
+            if not col.endswith("_id") or col == "id":
+                continue
+            prefix = col[:-3]
+            candidates = [
+                prefix,
+                prefix + "s",
+                prefix + "es",
+                prefix.rstrip("y") + "ies" if prefix.endswith("y") else None,
+            ]
+            for candidate in candidates:
+                if candidate and candidate in table_names:
+                    relations.append((f"{table}.{col}", f"{candidate}.id"))
+                    break
+
+    return relations
+
+
+# ── Build auto-include map ────────────────────────────────────────────────────
+def _build_auto_include(fk_relations: list[tuple[str, str]]) -> dict[str, list[str]]:
+    """table → [related tables] để tự động include bảng lookup."""
+    auto: dict[str, list[str]] = {}
+    for src, dst in fk_relations:
+        src_t = src.split(".")[0]
+        dst_t = dst.split(".")[0]
+        auto.setdefault(src_t, [])
+        if dst_t not in auto[src_t]:
+            auto[src_t].append(dst_t)
+    return auto
+
+
+def _expand_with_related(
+    selected: list[str],
+    full_schema: dict[str, list[str]],
+    auto_include: dict[str, list[str]],
+) -> list[str]:
+    result = list(selected)
+    for table in list(selected):
+        for related in auto_include.get(table, []):
+            if related not in result and related in full_schema:
+                result.append(related)
+                logger.info("[Schema] Auto-include '%s' vì liên quan đến '%s'", related, table)
+    return result
+
+
+# ── Prompt ────────────────────────────────────────────────────────────────────
 _SYSTEM = """\
 Bạn là chuyên gia phân tích schema cơ sở dữ liệu.
 
@@ -55,7 +130,7 @@ hãy chọn ra các bảng CẦN THIẾT để viết SQL trả lời câu hỏi
 Quy tắc:
 - Chỉ chọn bảng thực sự cần (liên quan đến câu hỏi)
 - Nếu cần JOIN, thêm cả bảng trung gian
-- Trả về JSON array tên bảng, ví dụ: ["students", "majors"]
+- Trả về JSON array tên bảng, ví dụ: ["members", "cards"]
 - CHỈ trả về JSON array — KHÔNG thêm gì khác
 """
 
@@ -69,105 +144,41 @@ _prompt = ChatPromptTemplate.from_messages([
 ])
 
 
-def _get_full_schema() -> dict[str, list[str]]:
-    """Đọc schema từ SQLite, loại bỏ bảng system."""
-    PROJECT_ROOT = Path(__file__).resolve().parents[3]
-    if str(PROJECT_ROOT) not in sys.path:
-        sys.path.insert(0, str(PROJECT_ROOT))
-    from backend.app.db import get_schema_info
-    raw = get_schema_info()
-    # FIX: filter bảng system SQLite ra khỏi schema
-    return {
-        table: cols
-        for table, cols in raw.items()
-        if table.lower() not in _SQLITE_SYSTEM_TABLES
-    }
-
-
-def _expand_with_related(
-    selected: list[str],
-    full_schema: dict[str, list[str]],
-) -> list[str]:
-    result = list(selected)
-    for table in list(selected):
-        for related in _AUTO_INCLUDE.get(table, []):
-            if related not in result and related in full_schema:
-                result.append(related)
-                logger.info(
-                    "[Schema] Auto-include '%s' vì liên quan đến '%s'",
-                    related, table,
-                )
-    return result
-
-
-def _parse_table_array(raw: str, full_schema: dict) -> list[str] | None:
-    """
-    Parse JSON array từ LLM response.
-    Thử trực tiếp trước, fallback regex sau.
-    """
-    raw = raw.strip()
-
-    # Bước 1: parse trực tiếp
-    try:
-        tables = json.loads(raw)
-        if isinstance(tables, list):
-            valid = [t for t in tables if t in full_schema]
-            if valid:
-                return valid
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    # Bước 2: tìm array trong text
-    match = re.search(r'\[.*?\]', raw, re.DOTALL)
-    if match:
-        try:
-            tables = json.loads(match.group())
-            if isinstance(tables, list):
-                valid = [t for t in tables if t in full_schema]
-                if valid:
-                    return valid
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return None
-
-
+# ── LLM table selector ────────────────────────────────────────────────────────
 def _select_tables_with_llm(
     full_schema: dict[str, list[str]],
     rewritten_query: str,
+    auto_include: dict[str, list[str]],
 ) -> list[str]:
     all_tables_text = "\n".join(
         f"- {table}: ({', '.join(cols)})"
         for table, cols in full_schema.items()
     )
     try:
-        # FIX: tăng max_tokens từ 64 → 128 để tránh array bị truncate
-        llm = get_llm(max_tokens=128)
+        llm = get_llm(max_tokens=64)
         chain = _prompt | llm | StrOutputParser()
         raw = chain.invoke({
             "all_tables": all_tables_text,
             "rewritten_query": rewritten_query,
         })
-
-        valid = _parse_table_array(raw.strip(), full_schema)
-        if valid:
-            logger.info("[Schema] LLM chọn bảng gốc: %s", valid)
-            expanded = _expand_with_related(valid, full_schema)
-            if expanded != valid:
-                logger.info("[Schema] Sau auto-include: %s", expanded)
-            return expanded
-
-        logger.warning(
-            "[Schema] LLM trả về không parse được: '%s' — fallback toàn bộ schema.", raw[:80]
-        )
+        match = re.search(r'\[.*?\]', raw, re.DOTALL)
+        if match:
+            tables = json.loads(match.group())
+            valid = [t for t in tables if t in full_schema]
+            if valid:
+                logger.info("[Schema] LLM chọn: %s", valid)
+                expanded = _expand_with_related(valid, full_schema, auto_include)
+                if expanded != valid:
+                    logger.info("[Schema] Sau auto-include: %s", expanded)
+                return expanded
     except Exception as exc:
-        logger.warning("[Schema] LLM chọn bảng thất bại: %s — fallback toàn bộ schema.", exc)
+        logger.warning("[Schema] LLM thất bại: %s", exc)
 
-    # Fallback: toàn bộ schema (không có sqlite_sequence vì đã filter ở _get_full_schema)
-    logger.info("[Schema] Fallback → dùng toàn bộ %d bảng business", len(full_schema))
+    logger.info("[Schema] Fallback → toàn bộ %d bảng", len(full_schema))
     return list(full_schema.keys())
 
 
+# ── Format schema text ────────────────────────────────────────────────────────
 def _format_schema_text(
     selected_tables: dict[str, list[str]],
     relations: list[tuple[str, str]],
@@ -181,8 +192,9 @@ def _format_schema_text(
     return "\n".join(lines)
 
 
+# ── LangGraph node ────────────────────────────────────────────────────────────
 def schema_retrieval_node(state: GraphState) -> dict:
-    """LangGraph node: truy xuất schema liên quan."""
+    """LangGraph node: truy xuất schema từ DB đang active."""
     rewritten_query = state["rewritten_query"]
 
     try:
@@ -195,20 +207,16 @@ def schema_retrieval_node(state: GraphState) -> dict:
             "error": f"Không đọc được schema: {exc}",
         }
 
-    relevant_table_names = _select_tables_with_llm(full_schema, rewritten_query)
-    selected_tables = {
-        t: full_schema[t]
-        for t in relevant_table_names
-        if t in full_schema
-    }
+    fk_relations = _infer_fk_relations(full_schema)
+    auto_include = _build_auto_include(fk_relations)
+    logger.info("[Schema] FK suy luận được: %s", fk_relations)
+
+    relevant_table_names = _select_tables_with_llm(full_schema, rewritten_query, auto_include)
+    selected_tables = {t: full_schema[t] for t in relevant_table_names if t in full_schema}
 
     relevant_fk = [
-        (src, dst)
-        for src, dst in _FK_RELATIONS
-        if (
-            src.split(".")[0] in selected_tables
-            and dst.split(".")[0] in selected_tables
-        )
+        (src, dst) for src, dst in fk_relations
+        if src.split(".")[0] in selected_tables and dst.split(".")[0] in selected_tables
     ]
 
     schema_info = {
@@ -218,9 +226,5 @@ def schema_retrieval_node(state: GraphState) -> dict:
     }
     schema_text = _format_schema_text(selected_tables, relevant_fk)
 
-    logger.info(
-        "[Schema] %d bảng cuối: %s",
-        len(selected_tables),
-        list(selected_tables.keys()),
-    )
+    logger.info("[Schema] Kết quả: %d bảng: %s", len(selected_tables), list(selected_tables.keys()))
     return {"schema_info": schema_info, "schema_text": schema_text}

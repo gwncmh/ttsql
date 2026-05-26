@@ -1,12 +1,10 @@
 """
 backend/app/main.py
 ────────────────────
-FastAPI application entry point.
-- Lifespan hook: kiểm tra DB + warm up LangGraph khi khởi động
-- CORS giới hạn origin
-- Health check endpoint
+FastAPI entry point. Lifespan: kiểm tra DB + warm up LangGraph.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
+from app.api.upload import router as upload_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,14 +31,13 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Chạy khi app khởi động / tắt."""
     logger.info("Đang khởi động Text-to-SQL backend...")
 
-    # ── 1. Kiểm tra DB ─────────────────────────────────────────────────────
+    # ── 1. Kiểm tra DB ────────────────────────────────────────────────────────
     try:
-        from app.db import get_connection, get_schema_info
-        get_connection()
-        schema = get_schema_info()
+        from app.db_manager import get_active_connection, get_active_schema  # ← fix tên hàm, fix import path
+        get_active_connection()
+        schema = get_active_schema()
         logger.info(
             "✓ Database kết nối thành công — %d bảng: %s",
             len(schema), list(schema.keys()),
@@ -50,29 +48,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("✗ Lỗi kết nối database: %s", e)
 
-    # ── 2. Warm up LangGraph — compile 1 lần duy nhất khi startup ──────────
-    # Tránh compile lại mỗi request (mỗi thread run_in_executor có thể
-    # thấy _graph_instance=None nếu module chưa được import ở main thread)
+    # ── 2. Warm up LangGraph ──────────────────────────────────────────────────
     try:
-        import asyncio
-        from functools import partial
         from ai.agents.graph import get_graph
-
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, get_graph)   # compile trong thread pool
+        await loop.run_in_executor(None, get_graph)
         logger.info("✓ LangGraph compiled và sẵn sàng.")
     except Exception as e:
         logger.warning("⚠ LangGraph warm-up thất bại: %s", e)
 
-    yield   # app đang chạy
+    yield
 
     logger.info("Backend đang tắt...")
 
 
 app = FastAPI(
     title="Text-to-SQL Chatbot API",
-    version="0.3.0",
-    description="Multi-Agent Text-to-SQL với RAG và Adaptive Routing",
+    version="0.4.0",
+    description="Multi-Agent Text-to-SQL với RAG, Adaptive Routing và Dynamic DB",
     lifespan=lifespan,
 )
 
@@ -86,8 +79,10 @@ app.add_middleware(
 
 
 @app.get("/health", tags=["system"])
-def health_check() -> dict[str, str]:
-    return {"status": "ok", "version": "0.3.0"}
+def health_check() -> dict:
+    from app.db_manager import get_active_label  # ← dùng hàm có thật, fix import path
+    return {"status": "ok", "version": "0.4.0", "db": get_active_label()}
 
 
 app.include_router(chat_router, prefix="/api")
+app.include_router(upload_router, prefix="/api")  # ← fix: dùng upload_router, thêm prefix

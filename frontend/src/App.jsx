@@ -201,7 +201,6 @@ export default function App() {
         <Logo />
         <div className="header-meta">
           <span className="badge badge-green">● Đang chạy</span>
-          <span className="badge badge-blue">Multi-Agent</span>
           {conversation.length > 0 && (
             <button type="button" className="btn-clear" onClick={clearHistory} title="Xóa lịch sử">
               Xóa
@@ -216,10 +215,6 @@ export default function App() {
           <div className="sidebar-section">
             <div className="sidebar-label">Schema</div>
             <SchemaPanel activeTable={activeTable} onSelectTable={setActiveTable} />
-          </div>
-          <div className="sidebar-section">
-            <div className="sidebar-label">Trạng thái Agent</div>
-            <AgentStatusPanel agentStates={agentStates} />
           </div>
         </aside>
 
@@ -330,19 +325,6 @@ export default function App() {
                     </div>
                   ))
               )}
-            </div>
-          </div>
-
-          <div className="rpanel-section">
-            <div className="rpanel-label">🔧 Pipeline</div>
-            <div className="pipeline-list">
-              {AGENT_PIPELINE.map((agent) => (
-                <div className="pipeline-item" key={agent.id}>
-                  <span>{agent.icon}</span>
-                  <span className="pipeline-name">{agent.name}</span>
-                  <div className={`agent-dot ${agentStates[agent.id] || "idle"}`} />
-                </div>
-              ))}
             </div>
           </div>
         </aside>

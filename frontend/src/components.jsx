@@ -327,7 +327,7 @@ export function WelcomeScreen({ onSelectExample }) {
   return (
     <div className="welcome" id="welcome-screen">
       <div className="welcome-icon">💬</div>
-      <h2>Hỏi đáp cơ sở dữ liệu bằng tiếng Việt</h2>
+      <h2>Hỏi đáp cơ sở dữ liệu</h2>
       <p>Đặt câu hỏi bằng ngôn ngữ tự nhiên, hệ thống đa tác tử sẽ tự động tạo SQL và trả kết quả cho bạn.</p>
       <div className="example-pills">
         {EXAMPLE_QUESTIONS.map((e)=>(

@@ -1,18 +1,9 @@
 """
 ai/agents/llm_client.py
 ────────────────────────
-Cấu hình LLM duy nhất cho toàn pipeline.
-
-Dùng langchain_openai.ChatOpenAI trỏ vào OpenRouter.
-→ Không còn hard-code httpx calls rải rác trong từng agent.
-→ Retry / timeout / SSL handle bởi LangChain + httpx bên dưới.
-
-Usage:
-    from ai.agents.llm_client import get_llm, get_llm_fast
-
-    llm = get_llm()                       # model mặc định, temperature=0
-    llm_creative = get_llm(temperature=0.3)
-    llm_fast = get_llm_fast()             # max_tokens nhỏ hơn cho classify
+FIX:
+- TLS warning chỉ hiện 1 lần khi module load, không lặp lại mỗi request
+- Cache verify config để không tính lại mỗi lần get_llm() gọi
 """
 
 from __future__ import annotations
@@ -33,13 +24,17 @@ _DEFAULT_HEADERS = {
 
 
 def _get_verify() -> str | bool:
-    """Trả về cấu hình TLS verify, giống logic cũ."""
+    """Trả về cấu hình TLS verify. Chỉ warn một lần nhờ warnings.warn default filter."""
     flag = os.getenv("OPENROUTER_SSL_VERIFY", "true").strip().lower()
     if flag in ("0", "false", "no", "off"):
+        # FIX: dùng warnings.warn với category=UserWarning ở module level effect
+        # stacklevel=2 trỏ về caller, nhưng quan trọng là chỉ warn 1 lần nhờ
+        # Python default filter "once" per location
         warnings.warn(
             "TLS verification bị tắt (OPENROUTER_SSL_VERIFY=false). "
             "Chỉ dùng khi debug!",
-            stacklevel=3,
+            UserWarning,
+            stacklevel=2,
         )
         return False
     for key in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE"):
@@ -49,14 +44,38 @@ def _get_verify() -> str | bool:
     return certifi.where()
 
 
+# FIX: tính verify config một lần khi module load, không tính lại mỗi get_llm()
+_VERIFY = _get_verify()
+
+# FIX: cache http_client để tránh tạo mới mỗi request
+_HTTP_CLIENT = None
+
+
+def _get_http_client():
+    """Lazy init http_client, cache singleton."""
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is not None:
+        return _HTTP_CLIENT
+
+    if _VERIFY is False:
+        import httpx
+        _HTTP_CLIENT = httpx.Client(verify=False)
+    elif isinstance(_VERIFY, str):
+        import httpx
+        import ssl as _ssl
+        ctx = _ssl.create_default_context(cafile=_VERIFY)
+        _HTTP_CLIENT = httpx.Client(ssl_context=ctx)
+    else:
+        _HTTP_CLIENT = None  # dùng default
+
+    return _HTTP_CLIENT
+
+
 def get_llm(
     temperature: float = 0,
     max_tokens: int = 512,
 ) -> ChatOpenAI:
-    """
-    Trả về ChatOpenAI instance kết nối OpenRouter.
-    LangChain tự xử lý retry (với with_retry) và streaming.
-    """
+    """Trả về ChatOpenAI instance kết nối OpenRouter."""
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError(
@@ -65,18 +84,11 @@ def get_llm(
         )
 
     model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-    verify = _get_verify()
+    http_client = _get_http_client()
 
-    # http_client_kwargs cho httpx bên dưới LangChain
     http_kwargs: dict = {}
-    if verify is False:
-        import httpx
-        http_kwargs["http_client"] = httpx.Client(verify=False)
-    elif isinstance(verify, str):
-        import httpx
-        import ssl as _ssl
-        ctx = _ssl.create_default_context(cafile=verify)
-        http_kwargs["http_client"] = httpx.Client(ssl_context=ctx)
+    if http_client is not None:
+        http_kwargs["http_client"] = http_client
 
     return ChatOpenAI(
         model=model,
@@ -92,7 +104,7 @@ def get_llm(
 
 def get_llm_fast(temperature: float = 0) -> ChatOpenAI:
     """LLM với max_tokens nhỏ — dùng cho classify (router)."""
-    return get_llm(temperature=temperature, max_tokens=20)
+    return get_llm(temperature=temperature, max_tokens=128)
 
 
 def get_llm_creative(temperature: float = 0.3) -> ChatOpenAI:

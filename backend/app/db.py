@@ -1,13 +1,25 @@
 """
 backend/app/db.py
 ─────────────────
-Singleton connection tới SQLite database.
-Dùng check_same_thread=False vì FastAPI chạy multi-thread.
+FIX:
+- get_schema_info() filter bảng system SQLite (sqlite_sequence, ...)
+- Thêm busy_timeout thực sự thay vì chỉ comment
 """
 
 import sqlite3
 from pathlib import Path
 from functools import lru_cache
+
+# Bảng internal của SQLite — không liên quan business logic
+_SQLITE_SYSTEM_TABLES = {
+    "sqlite_sequence",
+    "sqlite_master",
+    "sqlite_stat1",
+    "sqlite_stat2",
+    "sqlite_stat3",
+    "sqlite_stat4",
+}
+
 
 def _find_project_root() -> Path:
     """Tìm PROJECT_ROOT (thư mục chứa cả backend/ và data/)."""
@@ -16,8 +28,8 @@ def _find_project_root() -> Path:
             return parent
         if (parent / "backend").exists() and (parent / "scripts").exists():
             return parent
-    # Fallback: 3 cấp lên từ backend/app/db.py = project root
     return Path(__file__).resolve().parents[3]
+
 
 DB_PATH = _find_project_root() / "data" / "university.db"
 
@@ -35,8 +47,10 @@ def get_connection() -> sqlite3.Connection:
         )
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")   # cải thiện read concurrency
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    # FIX: enforce timeout thực sự — SQLite raise OperationalError sau 5000ms
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -44,7 +58,6 @@ def execute_query(sql: str, params: tuple = ()) -> list[dict]:
     """
     Thực thi một câu SELECT và trả về list[dict].
     Chỉ cho phép SELECT — ném ValueError nếu gặp lệnh ghi.
-    Timeout 5 giây.
     """
     sql_upper = sql.strip().upper()
     forbidden = ("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "PRAGMA")
@@ -64,13 +77,17 @@ def execute_query(sql: str, params: tuple = ()) -> list[dict]:
 def get_schema_info() -> dict[str, list[str]]:
     """
     Trả về schema của tất cả bảng dạng {table_name: [col_name, ...]}.
-    Dùng trong Schema Retrieval Agent.
+    FIX: Lọc bỏ bảng system của SQLite.
     """
     conn = get_connection()
     tables_cur = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     )
-    tables = [row["name"] for row in tables_cur.fetchall()]
+    tables = [
+        row["name"] for row in tables_cur.fetchall()
+        # FIX: filter bảng system
+        if row["name"].lower() not in _SQLITE_SYSTEM_TABLES
+    ]
 
     schema: dict[str, list[str]] = {}
     for table in tables:
